@@ -1,1 +1,2 @@
-# njum-lasthope
+# AI-Companion-Game
+ 

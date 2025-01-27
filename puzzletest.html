@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interlocking Puzzle Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        #uploadContainer {
+            margin: 20px;
+        }
+
+        #gameBoard {
+            position: relative;
+            margin: 20px;
+            border: 2px solid #ccc;
+            background-color: #f9f9f9;
+        }
+
+        canvas {
+            position: absolute;
+            cursor: grab;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="uploadContainer">
+        <input type="file" id="imageUpload" accept="image/*" />
+    </div>
+    <div id="gameBoard"></div>
+
+    <script>
+        const uploadInput = document.getElementById("imageUpload");
+        const gameBoard = document.getElementById("gameBoard");
+
+        function createPuzzle(imageSrc, gridSize = 4) {
+            gameBoard.innerHTML = ""; // Clear previous puzzle
+            const image = new Image();
+            image.src = imageSrc;
+
+            image.onload = () => {
+                const { width, height } = image;
+                const pieceWidth = width / gridSize;
+                const pieceHeight = height / gridSize;
+
+                gameBoard.style.width = `${width}px`;
+                gameBoard.style.height = `${height}px`;
+
+                const pieces = [];
+                for (let row = 0; row < gridSize; row++) {
+                    for (let col = 0; col < gridSize; col++) {
+                        const canvas = document.createElement("canvas");
+                        canvas.width = pieceWidth;
+                        canvas.height = pieceHeight;
+                        const ctx = canvas.getContext("2d");
+
+                        // Draw the piece
+                        drawPuzzlePiece(ctx, image, row, col, pieceWidth, pieceHeight, width, height, gridSize);
+
+                        canvas.style.left = `${Math.random() * (width - pieceWidth)}px`;
+                        canvas.style.top = `${Math.random() * (height - pieceHeight)}px`;
+
+                        canvas.dataset.correctX = col * pieceWidth;
+                        canvas.dataset.correctY = row * pieceHeight;
+                        pieces.push(canvas);
+                    }
+                }
+
+                pieces.forEach(piece => {
+                    gameBoard.appendChild(piece);
+                    enableDragging(piece);
+                });
+            };
+        }
+
+        function drawPuzzlePiece(ctx, image, row, col, pieceWidth, pieceHeight, width, height, gridSize) {
+            const x = col * pieceWidth;
+            const y = row * pieceHeight;
+
+            ctx.save();
+            ctx.beginPath();
+
+            // Draw interlocking shapes
+            const size = Math.min(pieceWidth, pieceHeight) / 4;
+            const tabWidth = size / 2;
+            const tabHeight = size / 2;
+
+            // Top side
+            ctx.moveTo(x, y);
+            if (row > 0) {
+                ctx.lineTo(x + tabWidth, y);
+                ctx.quadraticCurveTo(x + tabWidth / 2, y + (row % 2 === 0 ? -tabHeight : tabHeight), x + tabWidth * 2, y);
+            }
+            ctx.lineTo(x + pieceWidth - tabWidth * 2, y);
+            if (row > 0) {
+                ctx.quadraticCurveTo(x + pieceWidth - tabWidth / 2, y + (row % 2 === 0 ? -tabHeight : tabHeight), x + pieceWidth - tabWidth, y);
+            }
+            ctx.lineTo(x + pieceWidth, y);
+
+            // Right side
+            ctx.lineTo(x + pieceWidth, y + tabWidth);
+            if (col < gridSize - 1) {
+                ctx.quadraticCurveTo(x + pieceWidth + (col % 2 === 0 ? tabHeight : -tabHeight), y + tabWidth / 2, x + pieceWidth, y + tabWidth * 2);
+            }
+            ctx.lineTo(x + pieceWidth, y + pieceHeight - tabWidth * 2);
+            if (col < gridSize - 1) {
+                ctx.quadraticCurveTo(x + pieceWidth + (col % 2 === 0 ? tabHeight : -tabHeight), y + pieceHeight - tabWidth / 2, x + pieceWidth, y + pieceHeight - tabWidth);
+            }
+            ctx.lineTo(x + pieceWidth, y + pieceHeight);
+
+            // Bottom side
+            ctx.lineTo(x + pieceWidth - tabWidth, y + pieceHeight);
+            if (row < gridSize - 1) {
+                ctx.quadraticCurveTo(x + pieceWidth - tabWidth / 2, y + pieceHeight + (row % 2 === 0 ? tabHeight : -tabHeight), x + pieceWidth - tabWidth * 2, y + pieceHeight);
+            }
+            ctx.lineTo(x + tabWidth * 2, y + pieceHeight);
+            if (row < gridSize - 1) {
+                ctx.quadraticCurveTo(x + tabWidth / 2, y + pieceHeight + (row % 2 === 0 ? tabHeight : -tabHeight), x + tabWidth, y + pieceHeight);
+            }
+            ctx.lineTo(x, y + pieceHeight);
+
+            // Left side
+            ctx.lineTo(x, y + pieceHeight - tabWidth);
+            if (col > 0) {
+                ctx.quadraticCurveTo(x - (col % 2 === 0 ? tabHeight : -tabHeight), y + pieceHeight - tabWidth / 2, x, y + pieceHeight - tabWidth * 2);
+            }
+            ctx.lineTo(x, y + tabWidth * 2);
+            if (col > 0) {
+                ctx.quadraticCurveTo(x - (col % 2 === 0 ? tabHeight : -tabHeight), y + tabWidth / 2, x, y + tabWidth);
+            }
+            ctx.lineTo(x, y);
+
+            ctx.closePath();
+            ctx.clip();
+
+            ctx.drawImage(image, x, y, pieceWidth, pieceHeight, 0, 0, pieceWidth, pieceHeight);
+            ctx.restore();
+        }
+
+        function enableDragging(piece) {
+            let offsetX, offsetY;
+
+            piece.addEventListener("mousedown", (e) => {
+                offsetX = e.offsetX;
+                offsetY = e.offsetY;
+                piece.style.cursor = "grabbing";
+
+                const move = (moveEvent) => {
+                    piece.style.left = `${moveEvent.clientX - gameBoard.offsetLeft - offsetX}px`;
+                    piece.style.top = `${moveEvent.clientY - gameBoard.offsetTop - offsetY}px`;
+                };
+
+                const stop = () => {
+                    piece.style.cursor = "grab";
+                    document.removeEventListener("mousemove", move);
+                    document.removeEventListener("mouseup", stop);
+
+                    
+                };
+
+                document.addEventListener("mousemove", move);
+                document.addEventListener("mouseup", stop);
+            });
+        }
+
+        uploadInput.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => createPuzzle(event.target.result);
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
+
+</body>
+
+</html>
